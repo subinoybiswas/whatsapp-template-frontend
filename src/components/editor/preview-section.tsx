@@ -1,24 +1,44 @@
-import React from 'react'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/card'
-import { Info, Loader } from 'lucide-react'
+import { Info, Loader2 } from 'lucide-react'
 import { useVariables } from '@/contexts/VariablesContext';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 export default function PreviewSection() {
-    const { loading, preview, error } = useVariables();
+    const { preview, error, isValidating, isGeneratingPreview } = useVariables();
 
     return (
         <Card className="col-span-1 flex flex-col">
             <CardHeader>
-                <CardTitle>Preview</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                    Preview
+                    {(isValidating || isGeneratingPreview) && (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                </CardTitle>
             </CardHeader>
             <CardContent className='flex-1 overflow-auto'>
-                <div className="whitespace-pre-wrap text-start">{preview}</div>
+                {preview ? (
+                    <div className="whitespace-pre-wrap text-start">{preview}</div>
+                ) : (
+                    <div className="text-muted-foreground italic">
+                        Preview will appear here...
+                    </div>
+                )}
             </CardContent>
             <CardFooter className='flex justify-end items-center'>
-                {loading && <Loader className="animate-spin text-blue-500" size={48} />}
-                {error && <div className="text-red-500 mt-2 flex gap-1">{error}
-                    <Info />
-                </div>}
+                {error && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger className="text-red-500 mt-2 flex items-center gap-1">
+                                {error}
+                                <Info className="h-4 w-4" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Check your template syntax and try again</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
             </CardFooter>
         </Card>
     )

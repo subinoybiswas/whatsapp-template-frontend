@@ -1,8 +1,8 @@
-
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useDebounceFn } from '../hooks/useDebounceFn';
 import { TemplateApiResponse } from '../types/TemplateAPIResponse';
+import { BACKEND_URL } from '../lib/constants';
 
 interface VariablesContextType {
     variables: { [key: string]: string };
@@ -11,6 +11,8 @@ interface VariablesContextType {
     loading: boolean;
     updateTemplate: (template: string) => void;
     handleVariableChange: (key: string, value: string) => void;
+    isValidating: boolean;
+    isGeneratingPreview: boolean;
 }
 
 const VariablesContext = createContext<VariablesContextType | undefined>(undefined);
@@ -20,84 +22,142 @@ export function VariablesProvider({ children }: { children: ReactNode }) {
     const [preview, setPreview] = useState('');
     const [error, setError] = useState('');
     const [template, setTemplate] = useState('');
-    const [loading, setLoading] = useState(false)
+    const [isValidating, setIsValidating] = useState(false);
+    const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+    
+    // Template cache
+    const templateCache = useRef<Map<string, string[]>>(new Map());
 
-    const debouncedValidateTemplate = useDebounceFn(async (template: string) => {
-        try {
-            setLoading(true);
-            const response = await axios.post<TemplateApiResponse>('http://localhost:5000/validate-template', { template });
-            if (response.data.success && response.data.data?.placeholders) {
-                const vars = response.data.data.placeholders.reduce((acc: { [key: string]: string }, key: string) => {
-                    acc[key] = variables[key] || '';
-                    return acc;
-                }, {});
-                setVariables(prevVars => ({
-                    ...prevVars,
-                    ...vars
-                }));
-                setError('');
-
-            } else {
-                setError(response.data.message || 'Validation failed');
-            }
-            setLoading(false);
-        } catch (err: any) {
-            setError(err.response?.data?.message || 'Invalid template format');
-            setLoading(false);
+    const validateTemplateFormat = (template: string): string | null => {
+        if (template.includes('{{') && !template.includes('}}')) {
+            return 'Invalid template format: missing closing "}}" for a placeholder';
         }
+        if (template.match(/{{\s*[a-z_]*\d+[a-z_]*\s*}}/g)) {
+            return 'Invalid template format: placeholders cannot contain numbers';
+        }
+        if (template.match(/{{\s*[^a-zA-Z_\s}]+\s*}}/g)) {
+            return 'Invalid template format: placeholders can only contain letters and underscores';
+        }
+        return null;
+    };
+
+    const debouncedValidateTemplate = useDebounceFn(async (newTemplate: string) => {
+        setTemplate(newTemplate); // Store the template value
+        
+        if (!newTemplate.trim()) {
+            setVariables({});
+            setPreview('');
+            setError('');
+            return;
+        }
+
+        const formatError = validateTemplateFormat(newTemplate);
+        if (formatError) {
+            setError(formatError);
+            setVariables({});
+            setPreview('');
+            return;
+        }
+
+        const abortController = new AbortController();
+
+        try {
+            setIsValidating(true);
+            setError('');
+
+            if (templateCache.current.has(newTemplate)) {
+                const cachedPlaceholders = templateCache.current.get(newTemplate)!;
+                const vars = cachedPlaceholders.reduce((acc, key) => ({ ...acc, [key]: variables[key] || '' }), {});
+                setVariables(vars);
+                await generatePreview(newTemplate, vars);
+                return;
+            }
+
+            const response = await axios.post<TemplateApiResponse>(
+                `${BACKEND_URL}/validate-template`, 
+                { template: newTemplate },
+                { signal: abortController.signal }
+            );
+
+            if (response.data.success && response.data.data?.placeholders) {
+                const placeholders = response.data.data.placeholders;
+                templateCache.current.set(newTemplate, placeholders);
+                const vars = placeholders.reduce((acc, key) => ({ ...acc, [key]: variables[key] || '' }), {});
+                setVariables(vars);
+                await generatePreview(newTemplate, vars);
+            } else {
+                throw new Error(response.data.message || 'Validation failed');
+            }
+        } catch (err: any) {
+            if (err.name !== 'AbortError') {
+                setError(err.response?.data?.message || err.message || 'Invalid template format');
+            }
+        } finally {
+            setIsValidating(false);
+        }
+
+        return () => abortController.abort();
     }, 500);
 
-    const debouncedParseTemplate = useDebounceFn(async (template: string, vars: { [key: string]: string }) => {
+    const generatePreview = async (templateText: string, vars: { [key: string]: string }) => {
+        const formatError = validateTemplateFormat(templateText);
+        if (formatError) {
+            setError(formatError);
+            return;
+        }
+
+        const abortController = new AbortController();
+
         try {
-            setLoading(true);
-            const response = await axios.post<TemplateApiResponse>('http://localhost:5000/generate-preview', { template, variables: vars });
+            setIsGeneratingPreview(true);
+            const response = await axios.post<TemplateApiResponse>(
+                `${BACKEND_URL}/generate-preview`,
+                { template: templateText, variables: vars },
+                { signal: abortController.signal }
+            );
+
             if (response.data.success && response.data.data?.preview) {
                 setPreview(response.data.data.preview);
                 setError('');
             } else {
-                setError(response.data.message || 'Preview generation failed');
+                throw new Error(response.data.message || 'Preview generation failed');
             }
-            setLoading(false);
         } catch (err: any) {
-            setError(err.response?.data?.message || 'An error occurred');
-            setLoading(false);
+            if (err.name !== 'AbortError') {
+                setError(err.response?.data?.message || err.message || 'Preview generation failed');
+            }
+        } finally {
+            setIsGeneratingPreview(false);
         }
-    }, 500);
 
-    const updateTemplate = (newTemplate: string) => {
-        setTemplate(newTemplate);
-        debouncedValidateTemplate(newTemplate);
-        updateVariables(newTemplate);
-        debouncedParseTemplate(newTemplate, variables);
+        return () => abortController.abort();
     };
 
     const handleVariableChange = (key: string, value: string) => {
         const newVariables = { ...variables, [key]: value };
         setVariables(newVariables);
-        debouncedParseTemplate(template, newVariables);
+        
+        // Always generate preview with current template
+        if (template) {
+            generatePreview(template, newVariables);
+        }
     };
 
-    const updateVariables = (template: string) => {
-        const variableRegex = /\{\{(\w+)\}\}/g;
-        const matches = [...template.matchAll(variableRegex)];
-        const newVariables: { [key: string]: string } = {};
-        matches.forEach(match => {
-            const varName = match[1];
-            newVariables[varName] = variables[varName] || '';
-        });
-        setVariables(prevVars => ({
-            ...prevVars,
-            ...newVariables
-        }));
-    };
+    useEffect(() => {
+        return () => {
+            templateCache.current.clear();
+        };
+    }, []);
 
     return (
         <VariablesContext.Provider value={{
             variables,
             preview,
             error,
-            loading,
-            updateTemplate,
+            loading: isValidating || isGeneratingPreview,
+            isValidating,
+            isGeneratingPreview,
+            updateTemplate: debouncedValidateTemplate,
             handleVariableChange,
         }}>
             {children}
