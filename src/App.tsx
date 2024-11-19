@@ -1,6 +1,6 @@
 import './App.css'
-import TemplateEditor from './components/page/template-editor'
-import PreviewSection from './components/page/preview-section'
+import TemplateEditor from './components/editor/template-editor'
+import PreviewSection from './components/editor/preview-section'
 
 function App() {
   return (
