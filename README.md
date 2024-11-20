@@ -1,50 +1,86 @@
-# React + TypeScript + Vite
+# WhatsApp Template Editor
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A robust React-based application for creating, editing, and previewing WhatsApp message templates with dynamic variable support. This editor provides a real-time preview feature, ensuring accurate formatting and validation of message templates.
 
-Currently, two official plugins are available:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
 
-## Expanding the ESLint configuration
+- **Frontend Framework:** React 18 with TypeScript
+- **Build Tool:** Vite
+- **Styling:** Tailwind CSS
+- **UI Components:** Shadcn/ui
+- **State Management:** React Context API
+- **HTTP Client:** Fetch API
+- **Development Tools:** ESLint, TypeScript
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+## Getting Started
 
-- Configure the top-level `parserOptions` property like this:
+### Prerequisites
 
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+Ensure you have the following installed:
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+- Node.js (v14 or higher)
+- npm or yarn
+- A running backend server (separate repository)
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
+### Installation
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
-```
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/subinoybiswas/whatsapp-template-frontend
+
+   ```
+
+2. Navigate to the project directory:
+   ```bash
+   cd whatsapp-template-frontend
+   ```
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
+4. Configure environment variables: Create a .env file in the root directory and add the following:
+
+   ```env
+   VITE_BACKEND_URL=http://localhost:5000  # Replace with your backend URL
+
+   ```
+
+5. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+## Running the Application
+
+1. Start the backend server as per its documentation.
+2. Open the frontend application in your browser at:
+   http://localhost:5173
+3. The template editor interface should load, ready for use.
+
+## Usage Guide
+
+### Creating Templates
+
+#### Enter Template Text
+
+- Type your message in the editor.
+- Use the `{{variable_name}}` syntax to add placeholders for dynamic content.
+- Example:
+  ```text
+  Hello {{customer_name}}, your order will arrive in {{delivery_time}}.
+  ```
+
+#### Variable Rules
+
+- Variables must be enclosed in double curly braces (`{{ }}`).
+- Only letters and underscores are allowed in variable names.
+  - **Valid Examples:** `{{user_name}}`, `{{status}}`
+  - **Invalid Examples:** `{{user123}}`, `{{user-name}}`
+
+#### Fill Variables
+
+- Input fields for each variable will be generated automatically.
+- Enter values into the generated fields to populate the template.
+- The preview will update in real-time as you type.
